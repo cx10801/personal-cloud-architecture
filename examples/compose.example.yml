@@ -1,0 +1,95 @@
+# 服务器侧容器编排示例
+# 复制为 compose.yml，配合 .env 使用。.env 必须 chmod 600 且在 .gitignore 内。
+
+services:
+  # ---------- 隧道出口：唯一对外通道 ----------
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: tunnel
+    restart: always
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      caddy:
+        condition: service_started
+    networks: [edge]
+    # 不映射任何端口 —— 隧道是出站连接
+
+  # ---------- 本地反向代理 ----------
+  caddy:
+    image: caddy:alpine
+    container_name: caddy
+    restart: always
+    ports:
+      - "127.0.0.1:8443:8443"    # 仅回环，不对公网
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+    networks: [edge]
+
+  # ---------- 身份提供方 ----------
+  idp:
+    image: <oidc-provider>:latest
+    container_name: idp
+    restart: always
+    volumes:
+      - ./idp:/config
+    expose:
+      - "9091"                    # 只在 Docker 网络内可达
+    networks: [edge]
+
+  # ---------- 状态面板 ----------
+  dashboard:
+    image: glanceapp/glance:latest
+    container_name: dashboard
+    restart: always
+    volumes:
+      - ./glance:/app/config
+    expose:
+      - "8080"
+    networks: [edge]
+
+  # ---------- 通知服务 ----------
+  notify:
+    image: binwiederhier/ntfy:latest
+    container_name: notify
+    restart: always
+    command: serve
+    environment:
+      - NTFY_BASE_URL=https://push.example.com
+      - NTFY_BEHIND_PROXY=true
+      - NTFY_AUTH_DEFAULT_ACCESS=deny-all
+    volumes:
+      - ./ntfy:/var/cache/ntfy
+    expose:
+      - "80"
+    networks: [edge]
+
+  # ---------- 桥接：让隧道容器访问仅监听回环的服务 ----------
+  bridge:
+    image: alpine/socat:latest
+    container_name: bridge
+    restart: always
+    command: TCP-LISTEN:8766,fork,reuseaddr TCP:host.docker.internal:8765
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8766:8766"
+    networks: [edge]
+
+networks:
+  edge:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+# 内存预算（1 GB 机器，实测）：
+#   tunnel 30 + caddy 25 + idp 120 + dashboard 40 + notify 20 + bridge 5 = 240 MB
+#   加上系统与 Docker 约 180 MB，剩余约 580 MB 给其他服务
+# 部署前用 `docker stats` 核对，不要凭镜像大小估算

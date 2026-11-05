@@ -1,0 +1,55 @@
+# wrangler.toml 示例
+# 复制为 wrangler.toml 并填入自己的值。不要提交真实的 wrangler.toml。
+
+name = "portal"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+# 账户 ID：从控制台右侧获取，或 `npx wrangler whoami`
+account_id = "<YOUR_ACCOUNT_ID>"
+
+# ---------- 路由 ----------
+# 先用 workers.dev 验证，确认无误后再绑自定义域
+routes = [
+  { pattern = "app.example.com/*", zone_name = "example.com" },
+]
+
+# ---------- KV ----------
+[[kv_namespaces]]
+binding = "STORE"
+id = "<KV_NAMESPACE_ID>"
+# preview_id 用于 wrangler dev --remote
+preview_id = "<KV_PREVIEW_ID>"
+
+# ---------- R2 ----------
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "<R2_BUCKET_NAME>"
+
+# ---------- 环境变量（非密钥）----------
+[vars]
+TEAM_DOMAIN = "example.cloudflareaccess.com"
+EXPECTED_AUD = "<ACCESS_APPLICATION_AUD_TAG>"
+ALLOW_ORIGIN = "https://app.example.com"
+
+# ---------- 定时触发 ----------
+[triggers]
+crons = ["0 1 * * *"]   # 每天 01:00 UTC
+
+# ---------- 环境 ----------
+[env.staging]
+name = "portal-staging"
+routes = [
+  { pattern = "staging.example.com/*", zone_name = "example.com" },
+]
+
+[env.staging.vars]
+TEAM_DOMAIN = "example.cloudflareaccess.com"
+EXPECTED_AUD = "<STAGING_AUD_TAG>"
+ALLOW_ORIGIN = "https://staging.example.com"
+
+# 注意：
+# 1. 密钥一律用 `wrangler secret put`，不要写在这里
+# 2. 这个文件本身不含敏感信息，可以提交
+# 3. 如果 account_id 也不想公开，把它移到环境变量 Wrangler 会读取 CLOUDFLARE_ACCOUNT_ID
