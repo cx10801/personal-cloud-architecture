@@ -1,0 +1,27 @@
+# 密钥与环境
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+wrangler.toml
+*.pem
+*.key
+credentials.json
+_mcc_tokens.json
+
+# 构建与依赖
+node_modules/
+dist/
+.cache/
+.wrangler/
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
